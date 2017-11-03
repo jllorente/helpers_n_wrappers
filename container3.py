@@ -44,45 +44,59 @@ LOGLEVELNODE = logging.INFO
 
 class Container(object):
 
-    def __init__(self, name='Container', loglevel=LOGLEVELCONTAINER):
+    def __init__(self, name='Container', loglevel=LOGLEVELCONTAINER, datatype='set'):
         """
         Initialize the Container.
+        Added datatype parameter to select from list or set.
+            Use set for higher performance
+            Use list for preserving insertion order
         """
-        self._version = 0.6
+        self._version = 0.7
         self._logger = logging.getLogger(name)
         self._logger.setLevel(loglevel)
         self._name = name
         self._dict = {}             # Indexes lookup keys to nodes
-        self._list = set()          # Stores a set of indexed nodes
         self._dict_id2keys = {}     # Indexes node ids to registered keys
+
+        if datatype == 'list':
+            self._nodes = []         # Stores a list of indexed nodes
+            self._gen_datatype = lambda: []
+            self._add_datatype = lambda x,data: x.append(data)
+            self._remove_datatype = lambda x,data: x.remove(data)
+        elif datatype == 'set':
+            self._nodes = set()      # Stores a set of indexed nodes
+            self._gen_datatype = lambda: set()
+            self._add_datatype = lambda x,data: x.add(data)
+            self._remove_datatype = lambda x,data: x.remove(data)
+        else:
+            raise Exception('Datatype "{}" not supported!'.format(datatype))
 
     def _add_lookupkeys(self, node, keys):
         for key, isunique in keys:
-            # The key is not unique - create a set of items for key
+            # The key is not unique - create a storage of items for key
             if not isunique:
                 if key not in self._dict:
-                    self._dict[key] = set()
-                self._dict[key].add(node)
+                    self._dict[key] = self._gen_datatype()
+                self._add_datatype(self._dict[key], node)
             # Check the unique key is not already in use
             elif key in self._dict:
-                raise KeyError('Failed to add: key {} already exists in dictionary for node {}'.format(key, self._dict[key]))
+                raise KeyError('Failed to add: key {} already exists for node {}'.format(key, self._dict[key]))
             # Add the unique key to the dictionary
             else:
                 self._dict[key] = node
 
     def _remove_lookupkeys(self, node, keys):
         for key, isunique in keys:
-            # The key is not unique - remove from set of items for key
+            # The key is not unique - remove from stored items for key
             if not isunique:
                 self._logger.debug('Removed shared key {} of node {}'.format(key, node))
-                self._dict[key].remove(node)
-                # The set has no more items, remove set
+                self._remove_datatype(self._dict[key], node)
+                # The storage has no more items, remove it
                 if len(self._dict[key]) == 0:
-                    self._logger.debug('The set has no more items, remove set')
                     del self._dict[key]
             # Check the unique key is already in use
             elif key not in self._dict:
-                raise KeyError('Failed to remove: key {} does not exists in dictionary for node {}'.format(key, node))
+                raise KeyError('Failed to remove: key {} does not exists for node {}'.format(key, node))
             # Add the unique key to the dictionary
             else:
                 self._logger.debug('Removed unique key {} of node {}'.format(key, node))
@@ -94,7 +108,7 @@ class Container(object):
 
         @param node: The node
         """
-        if node in self._list:
+        if node in self._nodes:
             raise Exception('Failed to add: node already exists {}'.format(node))
 
         # Register node lookup keys
@@ -102,8 +116,8 @@ class Container(object):
         self._add_lookupkeys(node, keys)
         # Map node id to lookup keys
         self._dict_id2keys[id(node)] = keys
-        # Add node to the set
-        self._list.add(node)
+        # Add node to the storage
+        self._add_datatype(self._nodes, node)
         self._logger.debug('Added node {}'.format(node))
 
     def get(self, key, update=False):
@@ -115,17 +129,15 @@ class Container(object):
         @return: The node node or KeyError if not found
         """
         node = self._dict[key]
-        if not isinstance(node, ContainerNode):
-            return node
-        if update:
+        if update and isinstance(node, ContainerNode):
             node.update()
         return node
 
     def getall(self):
         """
-        Returns a shallow copy of the internal set
+        Returns a shallow copy of the internal storage
         """
-        return list(self._list)
+        return list(self._nodes)
 
     def has(self, key, check_expire=True):
         """
@@ -178,8 +190,8 @@ class Container(object):
         self._remove_lookupkeys(node, keys)
         # Remove map node id to lookup keys
         del self._dict_id2keys[id(node)]
-        # Remove node from the set
-        self._list.remove(node)
+        # Remove node from the storage
+        self._remove_datatype(self._nodes, node)
         self._logger.debug('Removed node {}'.format(node))
         # Evaluate callback to ContainerNode item
         if callback:
@@ -187,13 +199,13 @@ class Container(object):
             node.delete()
 
     def removeall(self, callback=True):
-        # Iterate all nodes in the set and remove them
+        # Iterate all nodes in the storage and remove them
         for node in self.getall():
             self.remove(node, callback)
         # Sanity clear
         self._dict_id2keys.clear()
         self._dict.clear()
-        self._list.clear()
+        self._nodes.clear()
 
     def updatekeys(self, node):
         # Get lookup keys
@@ -211,13 +223,13 @@ class Container(object):
 
     def __len__(self):
         """ Returns the length of the internal list node """
-        return len(self._list)
+        return len(self._nodes)
 
     def __repr__(self):
         return '{} ({} items)'.format(self._name, len(self))
 
     def dump(self):
-        return '\n'.join(['#{} {}'.format(i+1, node.dump()) for i, node in enumerate(self._list)])
+        return '\n'.join(['#{} {}'.format(i+1, node.dump()) for i, node in enumerate(self._nodes)])
 
 
 class ContainerNode(object):
