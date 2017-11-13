@@ -33,6 +33,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # This module contains network and packet realted helper functions
 
 import socket
+import struct
 import sys
 import traceback
 
@@ -67,7 +68,6 @@ def parse_packet_scapy(data):
         ret['sctp_tag'] = ip.payload.tag
     return ret
 
-import struct
 def parse_packet_custom(data):
     ret = {}
     ret['src'] = socket.inet_ntoa(data[12:16])
@@ -105,3 +105,28 @@ def is_ipv6(ipaddr):
         return True
     except:
         return False
+
+def ipaddr_to_int(ipaddr, family = socket.AF_INET):
+    if family == socket.AF_INET:
+        ipaddr_b = socket.inet_pton(family, ipaddr)
+        ipaddr_i = struct.unpack('!I', ipaddr_b)[0]
+    elif family == socket.AF_INET6:
+        ipaddr_b = socket.inet_pton(family, ipaddr)
+        a, b = struct.unpack('!2Q', ipaddr_b)
+        ipaddr_i = (a << 64) | b
+    else:
+        raise socket.error('Unsupported family "{}"'.format(family))
+    return ipaddr_i
+
+def int_to_ipaddr(ipaddr, family = socket.AF_INET):
+    if family == socket.AF_INET:
+        ipaddr_b = struct.pack('!I', ipaddr)
+        ipaddr_s = socket.inet_ntop(family, ipaddr_b)
+    elif family == socket.AF_INET6:
+        a = ipaddr >> 64
+        b = ipaddr & ((1 << 64) - 1)
+        ipaddr_b = struct.pack('!2Q', a, b)
+        ipaddr_s = socket.inet_ntop(family, ipaddr_b)
+    else:
+        raise socket.error('Unsupported family "{}"'.format(family))
+    return ipaddr_s
