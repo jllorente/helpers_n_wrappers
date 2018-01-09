@@ -118,7 +118,11 @@ def add_rule(table, chain, rule_d, position=0, ipv6=False):
     elif position < 0:
         # Insert rule in given position starting from bottom -> not available in iptables CLI
         nof_rules = len(iptc_chain.rules)
-        iptc_chain.insert_rule(iptc_rule, position + nof_rules)
+        _position = position + nof_rules
+        # Insert at the top if the position has looped over
+        if _position <= 0:
+            _position = 0
+        iptc_chain.insert_rule(iptc_rule, _position)
 
 def insert_rule(table, chain, rule_d, ipv6=False):
     """ Add a rule to a chain in the 1st position """
@@ -430,9 +434,9 @@ def _decode_iptc_rule(iptc_rule, ipv6=False):
     elif ipv6==True and iptc_rule.src != '::/0':
         d['src'] = iptc_rule.src
     if ipv6==False and iptc_rule.dst != '0.0.0.0/0.0.0.0':
-        d['dst'] = iptc_rule.dst
+        d['dst'] = iptc_rule.dst.rstrip('/255.255.255.255')
     elif ipv6==True and iptc_rule.dst != '::/0':
-        d['dst'] = iptc_rule.dst
+        d['dst'] = iptc_rule.dst.rstrip('/128')
     if iptc_rule.protocol != 'ip':
         d['protocol'] = iptc_rule.protocol
     if iptc_rule.in_interface is not None:
