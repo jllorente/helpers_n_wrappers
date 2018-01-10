@@ -58,6 +58,8 @@ def parse_packet_scapy(data):
     elif ip.proto == 6:
         ret['sport'] = ip.payload.sport
         ret['dport'] = ip.payload.dport
+        ret['tcp_seq'] = ip.payload.seq
+        ret['tcp_ack'] = ip.payload.ack
         ret['tcp_flags'] = ip.payload.flags
     elif ip.proto == 17:
         ret['sport'] = ip.payload.sport
@@ -77,19 +79,25 @@ def parse_packet_custom(data):
     proto = data[9]
     ihl = (data[0] & 0x0F) * 4  #ihl comes in 32 bit words (32/8)
     if proto == 1:
+        _type, _code = struct.unpack('!BB', data[ihl:ihl+1])
         ret['icmp-type'] = data[ihl]
         ret['icmp-code'] = data[ihl+1]
     elif proto == 6:
-        ret['sport'] = struct.unpack('!H', (data[ihl:ihl+2]))[0]
-        ret['dport'] = struct.unpack('!H', (data[ihl+2:ihl+4]))[0]
-        ret['tcp_flags'] = struct.unpack('!B', (data[ihl+13:ihl+14]))[0]
+        _sport, _dport, _seq, _ack, _, _flags = struct.unpack('!HHIIBB', data[ihl:ihl+14])
+        ret['sport'] = _sport
+        ret['dport'] = _dport
+        ret['tcp_seq'] = _seq
+        ret['tcp_ack'] = _ack
+        ret['tcp_flags'] = _flags
     elif proto == 17:
-        ret['sport'] = struct.unpack('!H', (data[ihl:ihl+2]))[0]
-        ret['dport'] = struct.unpack('!H', (data[ihl+2:ihl+4]))[0]
+        _sport, _dport = struct.unpack('!HH', data[ihl:ihl+4])
+        ret['sport'] = _sport
+        ret['dport'] = _dport
     elif proto == 132:
-        ret['sport'] = struct.unpack('!H', (data[ihl:ihl+2]))[0]
-        ret['dport'] = struct.unpack('!H', (data[ihl+2:ihl+4]))[0]
-        ret['sctp_tag'] = struct.unpack('!I', (data[ihl+4:ihl+8]))[0]
+        _sport, _dport, _tag = struct.unpack('!HHI', data[ihl:ihl+8])
+        ret['sport'] = _sport
+        ret['dport'] = _dport
+        ret['sctp_tag'] = _tag
     return ret
 
 def is_ipv4(ipaddr):
