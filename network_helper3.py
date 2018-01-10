@@ -79,9 +79,9 @@ def parse_packet_custom(data):
     proto = data[9]
     ihl = (data[0] & 0x0F) * 4  #ihl comes in 32 bit words (32/8)
     if proto == 1:
-        _type, _code = struct.unpack('!BB', data[ihl:ihl+1])
-        ret['icmp-type'] = data[ihl]
-        ret['icmp-code'] = data[ihl+1]
+        _type, _code = struct.unpack('!BB', data[ihl:ihl+2])
+        ret['icmp-type'] = _type
+        ret['icmp-code'] = _code
     elif proto == 6:
         _sport, _dport, _seq, _ack, _, _flags = struct.unpack('!HHIIBB', data[ihl:ihl+14])
         ret['sport'] = _sport
