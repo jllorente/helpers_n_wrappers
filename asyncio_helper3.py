@@ -47,11 +47,16 @@ class AsyncSocketQueue(object):
 
     def _recv_callback(sock, queue, msgsize):
         # Socket is read-ready
-        queue.put_nowait(sock.recv(msgsize))
+        try:
+            queue.put_nowait(sock.recv(msgsize))
+        except Exception as e:
+            queue.put_nowait(e)
 
     async def recv(self):
         data = await self._queue.get()
         self._queue.task_done()
+        if isinstance(data, Exception):
+            raise data
         return data
 
     async def sendall(self, data):
